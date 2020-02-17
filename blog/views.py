@@ -3,8 +3,8 @@ from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.views.generic import ListView
 
 
-from .forms import EmailPostForm
-from .models import Post
+from .models import Post, Comment
+from .forms import EmailPostForm, CommentForm
 
 
 def post_list(request):
@@ -17,14 +17,30 @@ def post_list(request):
         # If the page does not int number, return the first page.
         posts = paginator.page(1)
     except EmptyPage:
-        # if the page number more than quantity of pages, return the lats page. 
+        # If the page number more than quantity of pages, return the lats page. 
         posts = paginator.page(paginator.num_pages)
     return render(request, 'blog/post/list.html', {'page':page,'posts': posts})
 
 
 def post_detail(request, year, month, day, post):
     post = get_object_or_404(Post, slug=post, status='published',publish__year=year, publish__month=month, publish__day=day)
-    return render(request,'blog/post/detail.html', {'post': post})    
+    # List of active comment for this post.
+    comments = post.comments.filter(active=True)
+    new_comment = None
+
+    if request.method == 'POST':
+        # User send comment.
+        comment_form = CommentForm(data=request.POST)
+        if comment_form.is_valid():
+            # Create comment, but we do not save it in the DB yet.
+            new_comment = comment_form.save(commit=False)
+            # Link comment to the article.
+            new_comment.post = post
+            # Save comment in the DB.
+            new_comment.save()    
+    else:
+        comment_form = CommentForm()
+    return render(request,'blog/post/detail.html', {'post': post, 'comments': comments, 'new_comment': new_comment, 'comment_form': comment_form})    
 
 
 class PostListView(ListView):
